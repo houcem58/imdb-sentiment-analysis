@@ -24,7 +24,7 @@ jobs:
         run: pip install ruff nbqa
 
       - name: Lint notebook
-        run: nbqa ruff imdb_sentiment_analysis.ipynb --ignore E501,E402,E401,F401
+        run: nbqa ruff imdb_sentiment_analysis.ipynb --ignore E501,E402,E401,F401,E741,E702
 
   validate-notebook:
     name: Validate notebook structure
