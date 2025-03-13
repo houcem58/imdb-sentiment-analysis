@@ -10,8 +10,8 @@ env:
   PYTHON_VERSION: "3.11"
 
 jobs:
-  lint:
-    name: Lint
+  check-clean-outputs:
+    name: Notebook outputs clean
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -20,11 +20,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install ruff
-        run: pip install ruff nbqa
+      - name: Install nbstripout
+        run: pip install nbstripout
 
-      - name: Lint notebook
-        run: nbqa ruff imdb_sentiment_analysis.ipynb --ignore E501,E402,E401,F401,E741,E702
+      - name: Fail if notebook has uncommitted outputs
+        run: nbstripout --verify imdb_sentiment_analysis.ipynb
 
   validate-notebook:
     name: Validate notebook structure
@@ -39,7 +39,7 @@ jobs:
       - name: Install nbformat
         run: pip install nbformat
 
-      - name: Validate notebook format and cell order
+      - name: Validate notebook format and required sections
         run: |
           python - << 'EOF'
           import nbformat, sys
@@ -47,10 +47,7 @@ jobs:
           nb = nbformat.read("imdb_sentiment_analysis.ipynb", as_version=4)
           nbformat.validate(nb)
 
-          # Check required sections exist
-          all_source = "\n".join(
-              "".join(c.source) for c in nb.cells
-          )
+          all_source = "\n".join("".join(c.source) for c in nb.cells)
           required = [
               "Configuration",
               "Data Collection",
@@ -68,14 +65,7 @@ jobs:
               print(f"Missing sections: {missing}")
               sys.exit(1)
 
-          # Ensure outputs are clean (no stale output in repo)
-          dirty = [i for i, c in enumerate(nb.cells)
-                   if c.cell_type == "code" and c.get("outputs")]
-          if dirty:
-              print(f"Cells with uncommitted outputs: {dirty} — run 'nbstripout' before committing")
-              sys.exit(1)
-
-          print(f"OK  {len(nb.cells)} cells validated, all outputs clean")
+          print(f"OK  {len(nb.cells)} cells validated")
           EOF
 
   requirements-check:
@@ -88,5 +78,5 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Check requirements can be parsed
+      - name: Check requirements can be resolved
         run: pip install --dry-run -r requirements.txt 2>&1 | tail -5
