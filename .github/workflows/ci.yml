@@ -20,11 +20,25 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install nbstripout
-        run: pip install nbstripout
+      - name: Install nbformat
+        run: pip install nbformat
 
-      - name: Fail if notebook has uncommitted outputs
-        run: nbstripout --verify imdb_sentiment_analysis.ipynb
+      - name: Fail if notebook has uncommitted outputs or execution counts
+        run: |
+          python - << 'EOF'
+          import nbformat, sys
+          nb = nbformat.read("imdb_sentiment_analysis.ipynb", as_version=4)
+          dirty = [
+              i for i, c in enumerate(nb.cells)
+              if c.cell_type == "code"
+              and (c.get("outputs") or c.get("execution_count") is not None)
+          ]
+          if dirty:
+              print(f"Cells with stale outputs/execution_count at indices: {dirty}")
+              print("Run nbstripout before committing.")
+              sys.exit(1)
+          print(f"OK all {len(nb.cells)} cells are clean")
+          EOF
 
   validate-notebook:
     name: Validate notebook structure
