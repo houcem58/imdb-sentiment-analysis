@@ -9,9 +9,9 @@
 [![Pipeline](https://github.com/houcem58/imdb-sentiment-analysis/actions/workflows/pipeline.yml/badge.svg)](https://github.com/houcem58/imdb-sentiment-analysis/actions/workflows/pipeline.yml)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green)](LICENSE)
-[![HuggingFace Spaces](https://img.shields.io/badge/🤗%20HuggingFace-Spaces-yellow)](https://huggingface.co/spaces/houcem58/imdb-sentiment-analysis)
+[![Live Demo](https://img.shields.io/badge/🎬%20Live%20Demo-Streamlit-FF4B4B)](https://houcem58-imdb-sentiment-analysis.streamlit.app)
 
-**[🎬 Try the live demo on HuggingFace Spaces →](https://huggingface.co/spaces/houcem58/imdb-sentiment-analysis)**
+**[🎬 Try the live demo →](https://houcem58-imdb-sentiment-analysis.streamlit.app)**
 
 </div>
 
