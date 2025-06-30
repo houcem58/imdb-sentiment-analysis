@@ -1,10 +1,11 @@
 """
-IMDb Sentiment Analysis — live demo via HuggingFace Inference API
-Calls distilbert-base-uncased-finetuned-sst-2-english (same model used in the notebook).
-No local model download — inference runs on HuggingFace infrastructure.
+IMDb Sentiment Analysis — live demo
+Primary: distilbert-base-uncased-finetuned-sst-2-english via HuggingFace Inference API
+Fallback: VADER (pure-Python lexicon) when HF API is unreachable
 """
 import requests
 import streamlit as st
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 st.set_page_config(
     page_title="IMDb Sentiment Analysis",
@@ -33,19 +34,43 @@ EXAMPLES = [
     "The sequel nobody asked for. The original had soul; this one has budget. CGI spectacle with zero emotional payoff.",
 ]
 
+_vader = SentimentIntensityAnalyzer()
 
-def query(text: str) -> list | dict:
-    hf_token = st.secrets.get("HF_TOKEN", "") if hasattr(st, "secrets") else ""
+
+def _vader_classify(text: str) -> tuple[float, float, str]:
+    scores = _vader.polarity_scores(text)
+    pos = scores["pos"]
+    neg = scores["neg"]
+    compound = scores["compound"]
+    if compound >= 0.05:
+        label = "POSITIVE"
+    elif compound <= -0.05:
+        label = "NEGATIVE"
+    else:
+        label = "NEUTRAL"
+    return pos, neg, label
+
+
+def query_hf(text: str) -> list | dict | None:
+    """Call HuggingFace Inference API. Returns None if unreachable."""
+    hf_token = ""
+    try:
+        hf_token = st.secrets.get("HF_TOKEN", "")
+    except Exception:
+        pass
     headers = {"Content-Type": "application/json"}
     if hf_token:
         headers["Authorization"] = f"Bearer {hf_token}"
-    resp = requests.post(
-        API_URL,
-        headers=headers,
-        json={"inputs": text[:512]},
-        timeout=30,
-    )
-    return resp.json()
+    try:
+        resp = requests.post(
+            API_URL,
+            headers=headers,
+            json={"inputs": text[:512]},
+            timeout=15,
+        )
+        return resp.json()
+    except (requests.ConnectionError, requests.Timeout):
+        return None
 
 
 # ── Header ────────────────────────────────────────────────────────────────────
@@ -75,56 +100,61 @@ analyse = st.button("Analyse Sentiment", type="primary", use_container_width=Tru
 
 # ── Inference ─────────────────────────────────────────────────────────────────
 if analyse and review.strip():
-    with st.spinner("Running inference on HuggingFace…"):
-        try:
-            result = query(review.strip())
-        except requests.Timeout:
-            st.error("Request timed out. Try again in a moment.")
+    with st.spinner("Running inference…"):
+        result = query_hf(review.strip())
+
+    pos, neg, label, engine = None, None, None, None
+
+    if result is None:
+        # HF API unreachable — fall back to VADER
+        pos, neg, label = _vader_classify(review.strip())
+        engine = "VADER (offline fallback — HuggingFace API unreachable)"
+    elif isinstance(result, dict) and "error" in result:
+        if "loading" in result["error"].lower():
+            st.warning(
+                "Model is warming up on HuggingFace — wait 20 s and try again.  \n"
+                f"*(Error: {result['error']})*"
+            )
+            # Show VADER while warming up
+            pos, neg, label = _vader_classify(review.strip())
+            engine = "VADER (shown while DistilBERT warms up)"
+        else:
+            st.error(f"HuggingFace API error: {result['error']}")
             st.stop()
-        except Exception as exc:
-            st.error(f"Inference error: {exc}")
-            st.stop()
-
-    # Handle "model loading" response
-    if isinstance(result, dict) and "error" in result:
-        st.warning(
-            f"Model is warming up on HuggingFace servers — wait 20 seconds and try again.  \n"
-            f"*(Error: {result['error']})*"
-        )
-        st.stop()
-
-    # Normalise response shape: [[{label, score}]] or [{label, score}]
-    scores_raw = result[0] if (isinstance(result, list) and isinstance(result[0], list)) else result
-    score_map = {r["label"]: r["score"] for r in scores_raw}
-
-    pos = score_map.get("POSITIVE", 0.0)
-    neg = score_map.get("NEGATIVE", 0.0)
-
-    st.divider()
-
-    if pos >= neg:
-        st.success(f"## 😊 POSITIVE")
-        conf, other = pos, neg
     else:
-        st.error(f"## 😞 NEGATIVE")
-        conf, other = neg, pos
+        scores_raw = result[0] if (isinstance(result, list) and isinstance(result[0], list)) else result
+        score_map = {r["label"]: r["score"] for r in scores_raw}
+        pos = score_map.get("POSITIVE", 0.0)
+        neg = score_map.get("NEGATIVE", 0.0)
+        label = "POSITIVE" if pos >= neg else "NEGATIVE"
+        engine = "DistilBERT (HuggingFace Inference API)"
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Confidence", f"{conf:.1%}")
-    c2.metric("Positive", f"{pos:.1%}")
-    c3.metric("Negative", f"{neg:.1%}")
+    if pos is not None:
+        st.divider()
+        conf = pos if label == "POSITIVE" else neg
 
-    # Confidence bar
-    bar_filled = int(conf * 20)
-    bar = "█" * bar_filled + "░" * (20 - bar_filled)
-    st.code(f"Confidence  [{bar}]  {conf:.1%}", language=None)
+        if label == "POSITIVE":
+            st.success("## 😊 POSITIVE")
+        elif label == "NEGATIVE":
+            st.error("## 😞 NEGATIVE")
+        else:
+            st.info("## 😐 NEUTRAL")
 
-    st.caption(f"Characters analysed: {min(len(review), 512)} / 512 (DistilBERT max)")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Confidence", f"{conf:.1%}")
+        c2.metric("Positive", f"{pos:.1%}")
+        c3.metric("Negative", f"{neg:.1%}")
+
+        bar_filled = int(conf * 20)
+        bar = "█" * bar_filled + "░" * (20 - bar_filled)
+        st.code(f"Confidence  [{bar}]  {conf:.1%}", language=None)
+
+        st.caption(f"Engine: {engine}  |  Characters: {min(len(review), 512)} / 512")
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.divider()
 st.caption(
-    "**Stack:** HuggingFace Transformers · Streamlit · Python  |  "
+    "**Stack:** HuggingFace Transformers · VADER · Streamlit · Python  |  "
     "**Model:** DistilBERT fine-tuned on Stanford Sentiment Treebank  |  "
     "**Author:** [Houcem Hammami](https://github.com/houcem58)"
 )
