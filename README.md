@@ -56,7 +56,7 @@ This notebook addresses each of these systematically before any model is trained
 | Linear SVM | ~0.81 |
 | Logistic Regression | ~0.80 |
 
-Single deterministic run (`seed=42`) on the augmented balanced dataset (2 865 samples, 3 equal classes).
+Single deterministic run (`seed=42`) on the augmented balanced dataset (2 865 samples, 3 equal classes: positive / neutral / negative). Neutral class derived via confidence threshold: predictions with max-class probability < 0.65 on the binary SST-2 model are classified as neutral. Note: these are 3-class accuracy figures — not directly comparable to binary sentiment benchmarks.
 
 ---
 
@@ -70,7 +70,7 @@ Text Preprocessing
     │  lowercase · punct removal · stopwords · WordNet lemmatisation
     ▼
 Zero-shot Labelling (DistilBERT SST-2)
-    │  positif / négatif / neutre
+    │  positive / neutral / negative
     ▼
 Class Balancing (nlpaug contextual augmentation)
     │  → 2 865 samples, 3 equal classes
