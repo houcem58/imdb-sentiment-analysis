@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install ruff
+        run: pip install ruff nbqa
+
+      - name: Lint notebook
+        run: nbqa ruff imdb_sentiment_analysis.ipynb --ignore E501,E402
+
+  validate-notebook:
+    name: Validate notebook structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install nbformat
+        run: pip install nbformat
+
+      - name: Validate notebook format and cell order
+        run: |
+          python - << 'EOF'
+          import nbformat, sys
+
+          nb = nbformat.read("imdb_sentiment_analysis.ipynb", as_version=4)
+          nbformat.validate(nb)
+
+          # Check required sections exist
+          all_source = "\n".join(
+              "".join(c.source) for c in nb.cells
+          )
+          required = [
+              "Configuration",
+              "Data Collection",
+              "Text Preprocessing",
+              "Sentiment Labelling",
+              "Class Balancing",
+              "Classical Models",
+              "Deep Learning",
+              "BERT Fine-tuning",
+              "Results Summary",
+              "Inference Function",
+          ]
+          missing = [s for s in required if s not in all_source]
+          if missing:
+              print(f"Missing sections: {missing}")
+              sys.exit(1)
+
+          # Ensure outputs are clean (no stale output in repo)
+          dirty = [i for i, c in enumerate(nb.cells)
+                   if c.cell_type == "code" and c.get("outputs")]
+          if dirty:
+              print(f"Cells with uncommitted outputs: {dirty} — run 'nbstripout' before committing")
+              sys.exit(1)
+
+          print(f"OK  {len(nb.cells)} cells validated, all outputs clean")
+          EOF
+
+  requirements-check:
+    name: Requirements sanity check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Check requirements can be parsed
+        run: pip install --dry-run -r requirements.txt 2>&1 | tail -5
