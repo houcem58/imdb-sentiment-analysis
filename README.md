@@ -1,25 +1,45 @@
+<div align="center">
+
 # IMDb Sentiment Analysis
 
-**Web scraping · NLP preprocessing · BERT fine-tuning · Multi-model comparison**
+### Web Scraping · NLP Preprocessing · BERT Fine-tuning · Multi-Model Comparison
 
-[![CI](https://github.com/houcem58/imdb-sentiment-analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/houcem58/imdb-sentiment-analysis/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+**5 models · DistilBERT accuracy 88.6% · 1 273 scraped reviews · seed=42**
+
+[![Pipeline](https://github.com/houcem58/imdb-sentiment-analysis/actions/workflows/pipeline.yml/badge.svg)](https://github.com/houcem58/imdb-sentiment-analysis/actions/workflows/pipeline.yml)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green)](LICENSE)
+
+</div>
 
 ---
 
-## Overview
+> End-to-end NLP pipeline on real IMDb movie reviews: scraping, preprocessing, zero-shot
+> labelling, class balancing, and 5-model comparison from Logistic Regression to DistilBERT
+> fine-tuning. Structured as a reproducible ML study with clean notebook outputs and CI validation.
 
-End-to-end sentiment analysis pipeline on IMDb movie reviews:
+---
 
-1. **Scraping** — Selenium + Chromium headless scrapes 1 000+ reviews from a target movie
-2. **Preprocessing** — lowercase · punctuation removal · stop-word filtering · WordNet lemmatisation
-3. **Labelling** — zero-shot DistilBERT SST-2 assigns *positif / négatif / neutre* labels
-4. **Balancing** — `nlpaug` contextual word-embedding augmentation upsamples minority classes
-5. **Baseline models** — TF-IDF + Logistic Regression · Linear SVM
-6. **Deep learning** — 1D-CNN · LSTM (Keras / TensorFlow)
-7. **BERT fine-tuning** — `distilbert-base-uncased` fine-tuned end-to-end (HuggingFace Trainer)
-8. **Evaluation** — confusion matrices · learning curves · word clouds · model comparison
+## The Problem
+
+Sentiment classification on user-generated reviews presents several compounding challenges
+that standard benchmarks don't capture: class imbalance (most scraped reviews skew positive),
+informal language, mixed-language text, and the need for a zero-shot labelling strategy
+when no ground-truth labels exist at collection time.
+
+This notebook addresses each of these systematically before any model is trained.
+
+---
+
+## Approach
+
+| Stage | Technique | Why |
+|---|---|---|
+| Labelling | Zero-shot DistilBERT SST-2 | No hand-labelled data at collection time |
+| Class balancing | `nlpaug` contextual word-embedding augmentation | Prevents majority-class bias |
+| Baseline | TF-IDF + Logistic Regression / SVM | Fast, interpretable, strong lower bound |
+| Deep learning | 1D-CNN + LSTM (Keras) | Sequence structure without full fine-tuning |
+| Fine-tuning | DistilBERT end-to-end (HuggingFace Trainer) | Full transformer on domain-specific reviews |
 
 ---
 
@@ -29,21 +49,51 @@ End-to-end sentiment analysis pipeline on IMDb movie reviews:
 |---|---|
 | DistilBERT fine-tuned | **0.8858** |
 | LSTM | ~0.84 |
-| CNN | ~0.82 |
-| SVM | ~0.81 |
+| 1D-CNN | ~0.82 |
+| Linear SVM | ~0.81 |
 | Logistic Regression | ~0.80 |
 
-*Results from a single deterministic run (`seed=42`) on the augmented balanced dataset (2 865 samples, 3 equal classes).*
+Single deterministic run (`seed=42`) on the augmented balanced dataset (2 865 samples, 3 equal classes).
 
 ---
 
-## Quickstart
+## Pipeline
+
+```
+IMDb reviews (Selenium scraper)
+    │  1 273 reviews — Inception (tt1375666)
+    ▼
+Text Preprocessing
+    │  lowercase · punct removal · stopwords · WordNet lemmatisation
+    ▼
+Zero-shot Labelling (DistilBERT SST-2)
+    │  positif / négatif / neutre
+    ▼
+Class Balancing (nlpaug contextual augmentation)
+    │  → 2 865 samples, 3 equal classes
+    ▼
+Feature Extraction
+    │  TF-IDF (classical) · tokenizer embeddings (neural)
+    ▼
+Model Training × 5
+    │  LogReg · SVM · CNN · LSTM · DistilBERT
+    ▼
+Evaluation
+    │  accuracy · confusion matrix · learning curves · word clouds
+    ▼
+Inference Function
+    │  predict_all(text) → all 5 model outputs
+```
+
+---
+
+## Quick Start
 
 ### Google Colab (recommended — free GPU)
 
 1. Open [`imdb_sentiment_analysis.ipynb`](imdb_sentiment_analysis.ipynb) in Colab
 2. Set runtime to **GPU** (Runtime → Change runtime type → T4)
-3. Run all cells top-to-bottom — the notebook handles Drive mounting and all installs
+3. Run all cells top-to-bottom
 
 ### Local
 
@@ -52,36 +102,18 @@ git clone https://github.com/houcem58/imdb-sentiment-analysis.git
 cd imdb-sentiment-analysis
 python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-# Open the notebook in JupyterLab / VS Code
 jupyter lab imdb_sentiment_analysis.ipynb
 ```
 
-> Set `IN_COLAB = False` detection is automatic — local runs save to `data/` and `outputs/`.
-
 ---
 
-## Project Structure
-
-```
-imdb-sentiment-analysis/
-├── imdb_sentiment_analysis.ipynb   # Main notebook (12 sections, clean outputs)
-├── requirements.txt                # Pinned dependencies
-├── .gitignore                      # Excludes data CSVs, model weights, outputs
-├── .github/
-│   └── workflows/
-│       └── ci.yml                  # Lint + structure validation on every push
-└── data/                           # Created at runtime (gitignored)
-```
-
----
-
-## Notebook Sections
+## Notebook Structure
 
 | # | Section | Description |
 |---|---|---|
 | 1 | Configuration | All paths, model names, hyper-parameters in one cell |
-| 2 | Install & Import | Quiet install, all imports, GPU detection |
-| 3 | Data Collection | Selenium IMDb scraper with caching |
+| 2 | Install & Import | Quiet install, imports, GPU detection |
+| 3 | Data Collection | Selenium IMDb scraper with local cache |
 | 4 | Text Preprocessing | Tokenise · lemmatise · stop-words |
 | 5 | Sentiment Labelling | Zero-shot DistilBERT pipeline |
 | 6 | Class Balancing | Contextual augmentation via `nlpaug` |
@@ -94,9 +126,49 @@ imdb-sentiment-analysis/
 
 ---
 
+## Project Structure
+
+```
+imdb-sentiment-analysis/
+├── imdb_sentiment_analysis.ipynb   # Main notebook (12 sections, clean outputs)
+├── generate_notebook.py            # Programmatic notebook builder
+├── requirements.txt                # Pinned dependencies
+├── .gitignore                      # Excludes data/, model weights, outputs
+├── .github/
+│   └── workflows/
+│       └── pipeline.yml            # Notebook cleanliness + structure validation
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── SECURITY.md
+└── LICENSE                         # Apache 2.0
+```
+
+---
+
+## CI
+
+Three automated checks on every push:
+
+| Check | What it does |
+|---|---|
+| `Notebook outputs clean` | Fails if any cell has uncommitted outputs or execution counts |
+| `Validate notebook structure` | Checks 10 required sections exist via nbformat |
+| `Requirements sanity check` | `pip install --dry-run` to verify dependencies resolve |
+
+Designed for notebooks: no ruff (inappropriate for cross-cell scope), no nbstripout --verify
+(serialization false positives). Uses `nbformat.validate()` directly.
+
+---
+
 ## Author
 
 **Houcem Hammami** — Technical Manager, AI & Data Engineering
-houcem0508@gmail.com
 
-Licensed under the Apache License 2.0 — see [LICENSE](LICENSE) for details.
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://linkedin.com/in/houcem-hammami)
+[![Email](https://img.shields.io/badge/Email-houcem0508%40gmail.com-red)](mailto:houcem0508@gmail.com)
+
+---
+
+## License
+
+Copyright 2025–2026 Houcem Hammami. Licensed under the Apache License, Version 2.0 — see [LICENSE](LICENSE).
